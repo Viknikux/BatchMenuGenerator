@@ -1,7 +1,3 @@
-// BatchMenuGenerator.cpp - Standalone native Win32 application
-// Pure Win32 API, zero external runtime dependencies
-// Statically link MSVCRT for out-of-the-box operation on all Windows versions
-
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -603,8 +599,6 @@ int WINAPI WinMain(HINSTANCE hI, HINSTANCE, LPSTR, int nC) {
     InitCommonControlsEx(&icc);
 
     const wchar_t CN[] = L"BatchMenuGeneratorClass";
-        
-    // Clean unified window configuration utilizing compiled icon asset tables (ID 1)
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof(WNDCLASSEXW);
     wc.lpfnWndProc = WndProc;
@@ -612,8 +606,8 @@ int WINAPI WinMain(HINSTANCE hI, HINSTANCE, LPSTR, int nC) {
     wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wc.lpszClassName = CN;
-    wc.hIcon = LoadIconW(hI, MAKEINTRESOURCEW(1));   // Displayed in Taskbar & Alt+Tab
-    wc.hIconSm = LoadIconW(hI, MAKEINTRESOURCEW(1)); // Displayed in Window Top-Left Titlebar
+    wc.hIcon = LoadIconW(hI, MAKEINTRESOURCEW(1));
+    wc.hIconSm = LoadIconW(hI, MAKEINTRESOURCEW(1));
 
     if (!RegisterClassExW(&wc)) {
         MessageBoxW(NULL, L"Window Registration Failed!", L"Error", MB_OK | MB_ICONERROR);
