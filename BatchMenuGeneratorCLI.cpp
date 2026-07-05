@@ -3,6 +3,8 @@
 #endif
 
 #include <windows.h>
+#include <shellapi.h>
+#pragma comment(lib, "Shell32.lib")
 #include <commdlg.h> 
 #include <string>
 #include <vector>
@@ -13,7 +15,7 @@
 #include <sstream>
 #include <io.h>
 #include <fcntl.h>
-
+#include <conio.h>
 #pragma comment(linker, "/SUBSYSTEM:CONSOLE")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "comdlg32.lib")
@@ -35,13 +37,23 @@ static void SetConsoleColor(int color) {
 static std::wstring ReadLine() {
     std::wstring line;
     std::getline(std::wcin, line);
+    while (!line.empty() && (line.back() == L'\r' || line.back() == L'\n')) {
+        line.pop_back();
+    }
     return line;
 }
 
 static std::wstring Trim(const std::wstring& str) {
-    size_t first = str.find_first_not_of(L" \t\r\n");
-    if (first == std::wstring::npos) return L"";
-    size_t last = str.find_last_not_of(L" \t\r\n");
+    if (str.empty()) return L"";
+    size_t first = 0;
+    while (first < str.length() && str[first] <= 32) {
+        first++;
+    }
+    if (first == str.length()) return L"";
+    size_t last = str.length() - 1;
+    while (last > first && str[last] <= 32) {
+        last--;
+    }
     return str.substr(first, (last - first + 1));
 }
 
@@ -184,7 +196,23 @@ static bool WriteScriptToFile(const std::wstring& path, const std::wstring& scri
     return true;
 }
 
-static bool SaveToManualPath(const std::wstring& script, std::wstring forcedFile = L"", std::wstring forcedDir = L"") {
+static std::wstring GenerateTempFilePath() {
+    SYSTEMTIME st;
+    GetSystemTime(&st);
+    wchar_t buf[64];
+    swprintf(buf, 64, L"C:\\BMGtempScript_%04d%02d%02d_%02d%02d%02d.bat",
+        st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+    return std::wstring(buf);
+}
+
+static void DeleteTempFile(const std::wstring& path) {
+    if (path.empty()) return;
+    if (path.find(L"C:\\BMGtempScript_") == 0) {
+        DeleteFileW(path.c_str());
+    }
+}
+
+static bool SaveToManualPath(const std::wstring& script, std::wstring& outSavedPath, std::wstring forcedFile = L"", std::wstring forcedDir = L"") {
     while (true) {
         std::wstring filename = forcedFile;
         if (filename.empty()) {
@@ -192,9 +220,27 @@ static bool SaveToManualPath(const std::wstring& script, std::wstring forcedFile
             wprintf(L"\n  Enter filename: ");
             SetConsoleColor(CC_RESET);
             filename = ReadLine();
+            
+            if (filename.length() >= 2 && filename.front() == L'"' && filename.back() == L'"') {
+                filename = filename.substr(1, filename.length() - 2);
+            }
+            filename = Trim(filename);
+
             if (filename.empty()) {
                 SetConsoleColor(CC_RED);
                 wprintf(L"  [Error] Filename cannot be empty.\n");
+                SetConsoleColor(CC_RESET);
+                continue;
+            }
+
+            const std::wstring illegal = L"<>:\"/\\|?*";
+            bool invalid = false;
+            for (wchar_t c : filename) {
+                if (illegal.find(c) != std::wstring::npos) { invalid = true; break; }
+            }
+            if (invalid) {
+                SetConsoleColor(CC_RED);
+                wprintf(L"  [Error] Invalid filename. Cannot contain characters: < > : \" / \\ | ? *\n");
                 SetConsoleColor(CC_RESET);
                 continue;
             }
@@ -207,9 +253,21 @@ static bool SaveToManualPath(const std::wstring& script, std::wstring forcedFile
         std::wstring dir = forcedDir;
         if (dir.empty()) {
             SetConsoleColor(CC_YELLOW);
-            wprintf(L"  Enter path [Press Enter for Current (program) Directory]: ");
+            wprintf(L"  Enter path [Press Enter for Current Directory]: ");
             SetConsoleColor(CC_RESET);
             dir = ReadLine();
+            
+            if (dir.length() >= 2 && dir.front() == L'"' && dir.back() == L'"') {
+                dir = dir.substr(1, dir.length() - 2);
+            }
+            dir = Trim(dir);
+        }
+
+        if (dir.empty()) {
+            wchar_t buffer[MAX_PATH];
+            if (GetCurrentDirectoryW(MAX_PATH, buffer)) {
+                dir = buffer;
+            }
         }
 
         if (!dir.empty() && dir.back() != L'\\' && dir.back() != L'/') {
@@ -218,10 +276,12 @@ static bool SaveToManualPath(const std::wstring& script, std::wstring forcedFile
 
         std::wstring fullPath = dir + filename;
         std::wstring baseName = filename.substr(0, filename.length() - 4);
-
         std::wstring checkDir = dir;
-        if (!checkDir.empty() && (checkDir.back() == L'\\' || checkDir.back() == L'/') && checkDir.length() > 3) {
-            checkDir.pop_back(); 
+        while (!checkDir.empty() && (checkDir.back() == L'\\' || checkDir.back() == L'/')) {
+            if (checkDir.length() == 3 && checkDir[1] == L':') {
+                break; 
+            }
+            checkDir.pop_back();
         }
 
         if (!checkDir.empty()) {
@@ -279,7 +339,7 @@ static bool SaveToManualPath(const std::wstring& script, std::wstring forcedFile
                 wprintf(L"  [Warning] A file with the same name already exists!\n");
                 SetConsoleColor(CC_YELLOW);
                 wprintf(L"    1) Replace file\n");
-                wprintf(L"    2) Rename file to %s1.bat\n", baseName.c_str());
+                wprintf(L"    2) Rename file to %ls1.bat\n", baseName.c_str());
                 wprintf(L"    3) Retype file details\n");
                 wprintf(L"  Select option (1-3) [1]: ");
                 SetConsoleColor(CC_RESET);
@@ -295,32 +355,66 @@ static bool SaveToManualPath(const std::wstring& script, std::wstring forcedFile
 
         if (WriteScriptToFile(fullPath, script)) {
             SetConsoleColor(CC_GREEN);
-            wprintf(L"  [SUCCESS] Saved to: %s\n", fullPath.c_str());
+            wprintf(L"  [SUCCESS] Saved to: %ls\n", fullPath.c_str());
             SetConsoleColor(CC_RESET);
+            outSavedPath = fullPath;
             return true;
         } else {
+            DWORD systemErrorCode = GetLastError();
             SetConsoleColor(CC_RED);
-            wprintf(L"  [ERROR] Write operations restricted at this path.\n");
+            wprintf(L"  [ERROR] Failed to save file. (Win32 Error Code: %lu)\n", systemErrorCode);
             SetConsoleColor(CC_RESET);
-            if (!forcedFile.empty()) return false;
+            if (forcedFile.empty()) {
+                SetConsoleColor(CC_YELLOW);
+                wprintf(L"\n  [Info] Manual path saving failed!.\n");
+                wprintf(L"    1) Try entering manual path again\n");
+                wprintf(L"    2) Switch to Windows File Explorer dialog\n");
+                wprintf(L"  Select option (1-2) [2]: ");
+                SetConsoleColor(CC_RESET);
+                std::wstring failsafeChoice = ReadLine();
+                if (failsafeChoice.empty()) failsafeChoice = L"2";
+
+                if (failsafeChoice == L"2") {
+                    wchar_t path[MAX_PATH] = { 0 };
+                    OPENFILENAMEW of;
+                    ZeroMemory(&of, sizeof(of));
+                    of.lStructSize = sizeof(of);
+                    of.lpstrFilter = L"Batch Files (*.bat)\0*.bat\0All Files (*.*)\0*.*\0\0";
+                    of.lpstrFile = path;
+                    of.nMaxFile = MAX_PATH;
+                    of.lpstrDefExt = L"bat";
+                    of.lpstrTitle = L"Save Batch Menu Script (Windows Explorer mode)";
+                    of.Flags = OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY | OFN_PATHMUSTEXIST;
+
+                    if (GetSaveFileNameW(&of)) {
+                        if (WriteScriptToFile(path, script)) {
+                            SetConsoleColor(CC_GREEN);
+                            wprintf(L"  [SUCCESS] File saved to: %ls\n", path);
+                            SetConsoleColor(CC_RESET);
+                            outSavedPath = path;
+                            return true;
+                        }
+                    }
+                    SetConsoleColor(CC_RED);
+                    wprintf(L"  [Error] Explorer save canceled or failed.\n");
+                }
+            } else {
+                return false;
+            }
         }
     }
 }
 
-static bool ParseScriptConfig(const std::wstring& filePath, std::wstring& outTitle, 
+static bool ParseScriptConfigLines(const std::vector<std::wstring>& lines, std::wstring& outTitle, 
     std::vector<std::wstring>& outDesc, std::wstring& outPass, std::vector<OptionData>& outOptions,
     std::wstring& autoFilename, std::wstring& autoPath, bool& silentPreviewOnly) {
 
-    std::ifstream file(filePath);
-    if (!file.is_open()) return false;
-
-    std::string line;
     int optionCount = 0;
     int currentOption = -1;
     bool collecting = false;
 
-    while (std::getline(file, line)) {
-        std::wstring wLine = Trim(ConvertToWide(line));
+    for (const auto& rawLine : lines) {
+        std::wstring wLine = Trim(rawLine);
         if (wLine.empty() || wLine.substr(0, 2) == L"//") continue;
 
         if (collecting && wLine == L"}") {
@@ -391,250 +485,468 @@ static bool ParseScriptConfig(const std::wstring& filePath, std::wstring& outTit
             }
         }
     }
-    file.close();
     return true;
 }
 
+static bool ParseScriptConfig(const std::wstring& filePath, std::wstring& outTitle, 
+    std::vector<std::wstring>& outDesc, std::wstring& outPass, std::vector<OptionData>& outOptions,
+    std::wstring& autoFilename, std::wstring& autoPath, bool& silentPreviewOnly) {
+
+    std::ifstream file(filePath);
+    if (!file.is_open()) return false;
+
+    std::string line;
+    std::vector<std::wstring> lines;
+    while (std::getline(file, line)) {
+        lines.push_back(ConvertToWide(line));
+    }
+    file.close();
+
+    return ParseScriptConfigLines(lines, outTitle, outDesc, outPass, outOptions, autoFilename, autoPath, silentPreviewOnly);
+}
+
+static bool ConsoleTextEditor(std::vector<std::wstring>& lines) {
+    if (lines.empty()) lines.push_back(L"");
+    int curLine = (int)lines.size() - 1;
+    
+    auto Redraw = [&]() {
+    COORD cursorPosition;
+    cursorPosition.X = 0;
+    cursorPosition.Y = 0;
+    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), cursorPosition);
+
+    SetConsoleColor(CC_CYAN);
+    wprintf(L" --- Text Mode (ESC for menu, Up/Down to navigate) ---\n\n");
+    
+    for (size_t i = 0; i < lines.size(); i++) {
+       wprintf(L"                                                       \r"); 
+        
+        if ((int)i == curLine) {
+            SetConsoleColor(CC_YELLOW);
+            wprintf(L" > %ls_\n", lines[i].c_str());
+        } else {
+            SetConsoleColor(CC_WHITE);
+            wprintf(L"   %ls\n", lines[i].c_str());
+        }
+    }
+    wprintf(L"                                                       \n");
+    SetConsoleColor(CC_RESET);
+    };
+
+    Redraw();
+    while (true) {
+        int c = _getwch();
+        if (c == 27) { 
+            SetConsoleColor(CC_MAGENTA);
+            wprintf(L"\n\n [ESC Menu] 1: Continue | 2: Compile (finish) | 3: Exit Program: ");
+            SetConsoleColor(CC_RESET);
+            while(true) {
+                int opt = _getwch();
+                if (opt == L'1') { Redraw(); break; }
+                if (opt == L'2') { return true; } 
+                if (opt == L'3') { exit(0); } 
+            }
+        } else if (c == 13) {
+            if (curLine == (int)lines.size() - 1) {
+                lines.push_back(L"");
+            } else {
+                lines.insert(lines.begin() + curLine + 1, L"");
+            }
+            curLine++;
+            Redraw();
+        } else if (c == 8) {
+            if (!lines[curLine].empty()) {
+                lines[curLine].pop_back();
+                Redraw();
+            } else if (curLine > 0) {
+                lines.erase(lines.begin() + curLine);
+                curLine--;
+                Redraw();
+            }
+        } else if (c == 224 || c == 0) { 
+            int c2 = _getwch();
+            if (c2 == 72) { 
+                if (curLine > 0) { curLine--; Redraw(); }
+            } else if (c2 == 80) {
+                if (curLine < (int)lines.size() - 1) { curLine++; Redraw(); }
+            }
+        } else if (c >= 32) { 
+            lines[curLine].push_back((wchar_t)c);
+            Redraw();
+        }
+    }
+    return false;
+}
+
 int main() {
+    SetConsoleTitle(L"BatchMenuGeneratorCLI");
     _setmode(_fileno(stdout), _O_U16TEXT);
     _setmode(_fileno(stdin), _O_U16TEXT);
 
-    SetConsoleColor(CC_CYAN);
-    wprintf(L"\n");
-    wprintf(L"  ============================================\n");
-    wprintf(L"       Batch Menu Generator - CLI Edition\n");
-    wprintf(L"  ============================================\n\n");
-    SetConsoleColor(CC_RESET);
-
-    SetConsoleColor(CC_YELLOW);
-    wprintf(L"  Select Mode:\n");
-    wprintf(L"    1 = Make new Batch Menu\n");
-    wprintf(L"    2 = Load TXT Config\n");
-    wprintf(L"  Choice (1-2) [1]: ");
-    SetConsoleColor(CC_RESET);
-    std::wstring workflowChoice = ReadLine();
-    if (workflowChoice.empty()) workflowChoice = L"1";
-
-    std::wstring title;
-    std::vector<std::wstring> description;
-    std::wstring password = L"";
-    std::vector<OptionData> options;
-
-    std::wstring autoFilename = L"";
-    std::wstring autoPath = L"";
-    bool silentPreviewOnly = false;
-    bool txtModeActive = (workflowChoice == L"2");
-
-    if (txtModeActive) {
-        SetConsoleColor(CC_YELLOW);
-        wprintf(L"\n  Enter config file path: ");
+    while (true) {
+        SetConsoleColor(CC_CYAN);
+        wprintf(L"\n");
+        wprintf(L"  ============================================\n");
+        wprintf(L"       Batch Menu Generator - CLI Edition\n");
+        wprintf(L"  ============================================\n\n");
         SetConsoleColor(CC_RESET);
-        std::wstring configPath = ReadLine();
-        
-        if (configPath.length() >= 2 && configPath.front() == L'"' && configPath.back() == L'"') {
-            configPath = configPath.substr(1, configPath.length() - 2);
-        }
-
-        if (!ParseScriptConfig(configPath, title, description, password, options, autoFilename, autoPath, silentPreviewOnly)) {
-            SetConsoleColor(CC_RED);
-            wprintf(L"  [Error] Failed to load config file.\n");
-            SetConsoleColor(CC_RESET);
-            ReadLine();
-            return 1;
-        }
-    } 
-    else {
-        while (true) {
-            SetConsoleColor(CC_YELLOW);
-            wprintf(L"  Enter window title (Max 57 chars): ");
-            SetConsoleColor(CC_RESET);
-            title = ReadLine();
-            if (title.empty()) {
-                title = L"Batch Menu";
-                break;
-            }
-            if (title.length() <= 57) {
-                break;
-            } else {
-                SetConsoleColor(CC_RED);
-                wprintf(L"  Title invalid: cannot be longer than 57 characters (including spaces)!\n");
-                SetConsoleColor(CC_RESET);
-            }
-        }
 
         SetConsoleColor(CC_YELLOW);
-        wprintf(L"  Do you want to add a description? (Y/n): ");
+        wprintf(L"  Select Mode:\n");
+        wprintf(L"    1 = Make new Batch Menu\n");
+        wprintf(L"    2 = Load TXT Config\n");
+        wprintf(L"    3 = Command Mode (uses same logic as Text configurations)\n");
+        wprintf(L"  Choice (1-3) [1]: ");
         SetConsoleColor(CC_RESET);
-        std::wstring descAns = ReadLine();
+        std::wstring workflowChoice = ReadLine();
+        if (workflowChoice.empty()) workflowChoice = L"1";
 
-        if (descAns.empty() || descAns == L"Y" || descAns == L"y" || descAns == L"yes") {
-            SetConsoleColor(CC_YELLOW);
-            wprintf(L"  Enter description lines below.\n");
-            wprintf(L"  Press Enter on an empty line when done.\n");
-            SetConsoleColor(CC_GREEN);
-            wprintf(L"  Description:\n");
-            SetConsoleColor(CC_RESET);
+        std::wstring title;
+        std::vector<std::wstring> description;
+        std::wstring password = L"";
+        std::vector<OptionData> options;
 
-            while (true) {
-                wprintf(L"    > ");
-                std::wstring descLine = ReadLine();
-                if (descLine.empty()) break;
-                description.push_back(descLine);
-            }
-        }
+        std::wstring autoFilename = L"";
+        std::wstring autoPath = L"";
+        bool silentPreviewOnly = false;
+        std::wstring finalSavedPath = L"";
+        std::wstring tempFilePath = L"";
 
-        SetConsoleColor(CC_YELLOW);
-        wprintf(L"\n  [Note] Password protecting a batch file is not fully secure since anyone can right-click and edit it.\n");
-        wprintf(L"  You can use a tool like Bat-To-Exe-Converter (found on GitHub) to turn your script into a secure .exe.\n");
-        wprintf(L"  Enter password (leave empty for none): ");
-        SetConsoleColor(CC_RESET);
-        password = ReadLine();
+        if (workflowChoice == L"2") {
+            bool loaded = false;
+            std::wstring loadChoice = L"";
 
-        SetConsoleColor(CC_YELLOW);
-        wprintf(L"  Number of options (1-20) [3]: ");
-        SetConsoleColor(CC_RESET);
-        std::wstring numStr = ReadLine();
-        int optionCount = 3;
-        if (!numStr.empty()) {
-            wchar_t* end = nullptr;
-            int val = (int)wcstol(numStr.c_str(), &end, 10);
-            if (end && *end == L'\0' && val >= 1 && val <= 20)
-                optionCount = val;
-        }
+            while (!loaded) {
+                if (loadChoice.empty()) {
+                    SetConsoleColor(CC_YELLOW);
+                    wprintf(L"\n  Choose Load Method:\n");
+                    wprintf(L"    1 = Browse (Windows File Explorer dialog)\n");
+                    wprintf(L"    2 = Type path manually\n");
+                    wprintf(L"  Select (1/2) [1]: ");
+                    SetConsoleColor(CC_RESET);
+                    loadChoice = ReadLine();
+                    if (loadChoice.empty()) loadChoice = L"1";
+                }
 
-        options.resize(optionCount);
+                if (loadChoice != L"1" && loadChoice != L"2") {
+                    SetConsoleColor(CC_RED);
+                    wprintf(L"  Invalid option choice. Select 1 or 2.\n");
+                    SetConsoleColor(CC_RESET);
+                    loadChoice = L"";
+                    continue;
+                }
 
-        for (int i = 0; i < optionCount; i++) {
-            SetConsoleColor(CC_MAGENTA);
-            wprintf(L"\n  --- Option %d ---\n", i + 1);
-            SetConsoleColor(CC_RESET);
+                std::wstring configPath = L"";
 
-            SetConsoleColor(CC_YELLOW);
-            wprintf(L"  Label [Option %d]: ", i + 1);
-            SetConsoleColor(CC_RESET);
-            std::wstring label = ReadLine();
-            options[i].label = label.empty() ? L"Option" : label;
+                if (loadChoice == L"1") {
+                    wchar_t path[MAX_PATH] = { 0 };
+                    OPENFILENAMEW of;
+                    ZeroMemory(&of, sizeof(of));
+                    of.lStructSize = sizeof(of);
+                    of.lpstrFilter = L"Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0\0";
+                    of.lpstrFile = path;
+                    of.nMaxFile = MAX_PATH;
+                    of.lpstrDefExt = L"txt";
+                    of.lpstrTitle = L"Select Configuration File";
+                    of.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
 
-            SetConsoleColor(CC_YELLOW);
-            wprintf(L"  Run mode:\n");
-            wprintf(L"    0 = Direct call (%%command%%)\n");
-            wprintf(L"    1 = cmd /c wrapper\n");
-            wprintf(L"  Select (0/1) [0]: ");
-            SetConsoleColor(CC_RESET);
-            std::wstring modeStr = ReadLine();
-            options[i].runMode = (modeStr == L"1") ? 1 : 0;
-
-            SetConsoleColor(CC_YELLOW);
-            wprintf(L"  Enter command(s), one per line.\n");
-            wprintf(L"  Press Enter on an empty line when done.\n");
-            SetConsoleColor(CC_GREEN);
-            wprintf(L"  Commands:\n");
-            SetConsoleColor(CC_RESET);
-
-            while (true) {
-                wprintf(L"    > ");
-                std::wstring cmd = ReadLine();
-                if (cmd.empty()) break;
-                options[i].commands.push_back(cmd);
-            }
-
-            if (options[i].commands.empty()) {
-                SetConsoleColor(CC_RED);
-                wprintf(L"  [No commands entered for this option!]\n");
-                SetConsoleColor(CC_RESET);
-            } else {
-                SetConsoleColor(CC_GREEN);
-                wprintf(L"  [%zu command(s) recorded]\n", options[i].commands.size());
-                SetConsoleColor(CC_RESET);
-            }
-        }
-    }
-
-    SetConsoleColor(CC_CYAN);
-    wprintf(L"\n  Generating batch script...\n");
-    SetConsoleColor(CC_RESET);
-
-    std::wstring script = GenerateBatch(title, description, options, password);
-
-    SetConsoleColor(CC_WHITE);
-    wprintf(L"\n  ========== PREVIEW ==========\n");
-    SetConsoleColor(CC_RESET);
-    wprintf(L"%s\n", script.c_str());
-
-    if (txtModeActive && silentPreviewOnly) {
-        SetConsoleColor(CC_YELLOW);
-        wprintf(L"\n  Not saved! Exiting.\n");
-        SetConsoleColor(CC_RESET);
-    } 
-    else if (txtModeActive && !autoFilename.empty()) {
-        SaveToManualPath(script, autoFilename, autoPath);
-    } 
-    else {
-        SetConsoleColor(CC_YELLOW);
-        wprintf(L"  Save to file? (Y/n): ");
-        SetConsoleColor(CC_RESET);
-        std::wstring saveAns = ReadLine();
-
-        if (saveAns.empty() || saveAns == L"Y" || saveAns == L"y" || saveAns == L"yes") {
-            std::wstring methodChoice;
-            
-            while (true) {
-                SetConsoleColor(CC_YELLOW);
-                wprintf(L"  Choose Save Method:\n");
-                wprintf(L"    1 = Type path manually\n");
-                wprintf(L"    2 = Browse (Windows File Explorer dialog)\n");
-                wprintf(L"  Select (1/2) [2]: ");
-                SetConsoleColor(CC_RESET);
-                methodChoice = ReadLine();
-                
-                if (methodChoice.empty()) methodChoice = L"2";
-                if (methodChoice == L"1" || methodChoice == L"2") break;
-
-                SetConsoleColor(CC_RED);
-                wprintf(L"  Invalid option choice. Select 1 or 2.\n");
-                SetConsoleColor(CC_RESET);
-            }
-
-            if (methodChoice == L"1") {
-                SaveToManualPath(script);
-            } else {
-                wchar_t path[MAX_PATH] = { 0 };
-                OPENFILENAMEW of = { sizeof(of) };
-                of.lpstrFilter = L"Batch Files\0*.bat\0All Files\0*.*\0";
-                of.lpstrFile = path;
-                of.nMaxFile = MAX_PATH;
-                of.lpstrDefExt = L"bat";
-                of.lpstrTitle = L"Save Batch Menu Script";
-                of.Flags = OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY | OFN_PATHMUSTEXIST;
-
-                if (GetSaveFileNameW(&of)) {
-                    if (!WriteScriptToFile(path, script)) {
-                        SetConsoleColor(CC_RED);
-                        wprintf(L"\n  [ERROR] Explorer save failed.\n");
-                        SetConsoleColor(CC_RESET);
-                        SaveToManualPath(script);
+                    if (GetOpenFileNameW(&of)) {
+                        configPath = path;
                     } else {
-                        SetConsoleColor(CC_GREEN);
-                        wprintf(L"\n  [SUCCESS] Saved to: %s\n", path);
+                        SetConsoleColor(CC_YELLOW);
+                        wprintf(L"\n  Dialog canceled. Defaulting to manual path entry...\n");
                         SetConsoleColor(CC_RESET);
+                        loadChoice = L"2"; 
+                        continue;
+                    }
+                } else if (loadChoice == L"2") {
+                    SetConsoleColor(CC_YELLOW);
+                    wprintf(L"\n  Enter config file path: ");
+                    SetConsoleColor(CC_RESET);
+                    configPath = ReadLine();
+                }
+                
+                if (configPath.length() >= 2 && configPath.front() == L'"' && configPath.back() == L'"') {
+                    configPath = configPath.substr(1, configPath.length() - 2);
+                }
+
+                if (configPath.empty() || !ParseScriptConfig(configPath, title, description, password, options, autoFilename, autoPath, silentPreviewOnly)) {
+                    SetConsoleColor(CC_RED);
+                    wprintf(L"  [Error] Failed to load config file (invalid path or corrupt).\n");
+                    SetConsoleColor(CC_YELLOW);
+                    wprintf(L"    1) Try entering path again\n");
+                    wprintf(L"    2) Use Windows Explorer to browse\n");
+                    wprintf(L"    3) Cancel to Main Menu\n");
+                    wprintf(L"  Select option (1-3) [1]: ");
+                    SetConsoleColor(CC_RESET);
+                    
+                    std::wstring retryAns = ReadLine();
+                    if (retryAns == L"2") {
+                        loadChoice = L"1"; 
+                    } else if (retryAns == L"3") {
+                        break; 
+                    } else {
+                        loadChoice = L"2"; 
                     }
                 } else {
-                    SetConsoleColor(CC_YELLOW);
-                    wprintf(L"\n  Dialog canceled. Defaulting to manual path entry...\n");
-                    SetConsoleColor(CC_RESET);
-                    SaveToManualPath(script);
+                    loaded = true;
                 }
             }
-        } else {
-            SetConsoleColor(CC_YELLOW);
-            wprintf(L"\n  Not saved! Exiting.\n");
-            SetConsoleColor(CC_RESET);
+
+            if (!loaded) {
+                system("cls");
+                continue;
+            }
+        } 
+        else if (workflowChoice == L"3") {
+            std::vector<std::wstring> editorLines;
+            bool compile = ConsoleTextEditor(editorLines);
+            if (!compile) {
+                system("cls");
+                continue;
+            }
+            
+            if (!ParseScriptConfigLines(editorLines, title, description, password, options, autoFilename, autoPath, silentPreviewOnly)) {
+                SetConsoleColor(CC_RED);
+                wprintf(L"  [Error] Failed to process editor text!\n");
+                SetConsoleColor(CC_RESET);
+                system("pause");
+                system("cls");
+                continue;
+            }
         }
+        else {
+            while (true) {
+                SetConsoleColor(CC_YELLOW);
+                wprintf(L"  Enter window title (Max 57 chars): ");
+                SetConsoleColor(CC_RESET);
+                title = ReadLine();
+                if (title.empty()) {
+                    title = L"Batch Menu";
+                    break;
+                }
+                if (title.length() <= 57) {
+                    break;
+                } else {
+                    SetConsoleColor(CC_RED);
+                    wprintf(L"  Title invalid: cannot be longer than 57 characters (including spaces)!\n");
+                    SetConsoleColor(CC_RESET);
+                }
+            }
+
+            SetConsoleColor(CC_YELLOW);
+            wprintf(L"  Do you want to add a description? (Y/n): ");
+            SetConsoleColor(CC_RESET);
+            std::wstring descAns = ReadLine();
+
+            if (descAns.empty() || descAns == L"Y" || descAns == L"y" || descAns == L"yes") {
+                SetConsoleColor(CC_YELLOW);
+                wprintf(L"  Enter description lines below.\n");
+                wprintf(L"  Press Enter on an empty line when done.\n");
+                SetConsoleColor(CC_GREEN);
+                wprintf(L"  Description:\n");
+                SetConsoleColor(CC_RESET);
+
+                while (true) {
+                    wprintf(L"    > ");
+                    std::wstring descLine = ReadLine();
+                    if (descLine.empty()) break;
+                    description.push_back(descLine);
+                }
+            }
+
+            SetConsoleColor(CC_YELLOW);
+            wprintf(L"\n  [Note] Password protecting a batch file is not fully secure since anyone can right-click and edit it.\n");
+            wprintf(L"  You can use a tool like Bat-To-Exe-Converter (found on GitHub) to turn your script into a secure .exe.\n");
+            wprintf(L"  Enter password (leave empty for none): ");
+            SetConsoleColor(CC_RESET);
+            password = ReadLine();
+
+            SetConsoleColor(CC_YELLOW);
+            wprintf(L"  Number of options (1-20) [3]: ");
+            SetConsoleColor(CC_RESET);
+            std::wstring numStr = ReadLine();
+            int optionCount = 3;
+            if (!numStr.empty()) {
+                wchar_t* end = nullptr;
+                int val = (int)wcstol(numStr.c_str(), &end, 10);
+                if (end && *end == L'\0' && val >= 1 && val <= 20)
+                    optionCount = val;
+            }
+
+            options.resize(optionCount);
+
+            for (int i = 0; i < optionCount; i++) {
+                SetConsoleColor(CC_MAGENTA);
+                wprintf(L"\n  --- Option %d ---\n", i + 1);
+                SetConsoleColor(CC_RESET);
+
+                SetConsoleColor(CC_YELLOW);
+                wprintf(L"  Label [Option %d]: ", i + 1);
+                SetConsoleColor(CC_RESET);
+                std::wstring label = ReadLine();
+                options[i].label = label.empty() ? L"Option" : label;
+
+                SetConsoleColor(CC_YELLOW);
+                wprintf(L"  Run mode:\n");
+                wprintf(L"    0 = Direct call (%%command%%)\n");
+                wprintf(L"    1 = cmd /c wrapper\n");
+                wprintf(L"  Select (0/1) [0]: ");
+                SetConsoleColor(CC_RESET);
+                std::wstring modeStr = ReadLine();
+                options[i].runMode = (modeStr == L"1") ? 1 : 0;
+
+                SetConsoleColor(CC_YELLOW);
+                wprintf(L"  Enter command(s), one per line.\n");
+                wprintf(L"  Press Enter on an empty line when done.\n");
+                SetConsoleColor(CC_GREEN);
+                wprintf(L"  Commands:\n");
+                SetConsoleColor(CC_RESET);
+
+                while (true) {
+                    wprintf(L"    > ");
+                    std::wstring cmd = ReadLine();
+                    if (cmd.empty()) break;
+                    options[i].commands.push_back(cmd);
+                }
+
+                if (options[i].commands.empty()) {
+                    SetConsoleColor(CC_RED);
+                    wprintf(L"  [No commands entered for this option!]\n");
+                    SetConsoleColor(CC_RESET);
+                } else {
+                    SetConsoleColor(CC_GREEN);
+                    wprintf(L"  [%zu command(s) recorded]\n", options[i].commands.size());
+                    SetConsoleColor(CC_RESET);
+                }
+            }
+        }
+
+        SetConsoleColor(CC_CYAN);
+        wprintf(L"\n  Generating batch script...\n");
+        SetConsoleColor(CC_RESET);
+
+        std::wstring script = GenerateBatch(title, description, options, password);
+
+        SetConsoleColor(CC_WHITE);
+        wprintf(L"\n  ========== PREVIEW ==========\n");
+        SetConsoleColor(CC_RESET);
+        wprintf(L"%ls\n", script.c_str());
+
+        if ((workflowChoice == L"2" || workflowChoice == L"3") && silentPreviewOnly) {
+            SetConsoleColor(CC_YELLOW);
+            wprintf(L"\n  Not saved! Exiting preview mode.\n");
+            SetConsoleColor(CC_RESET);
+        } 
+        else if ((workflowChoice == L"2" || workflowChoice == L"3") && !autoFilename.empty()) {
+            SaveToManualPath(script, finalSavedPath, autoFilename, autoPath);
+        } 
+        else {
+            SetConsoleColor(CC_YELLOW);
+            wprintf(L"  Save to file? (Y/n): ");
+            SetConsoleColor(CC_RESET);
+            std::wstring saveAns = ReadLine();
+
+            if (saveAns.empty() || saveAns == L"Y" || saveAns == L"y" || saveAns == L"yes") {
+                std::wstring methodChoice;
+                
+                while (true) {
+                    SetConsoleColor(CC_YELLOW);
+                    wprintf(L"  Choose Save Method:\n");
+                    wprintf(L"    1 = Type path manually\n");
+                    wprintf(L"    2 = Browse (Windows File Explorer dialog)\n");
+                    wprintf(L"  Select (1/2) [2]: ");
+                    SetConsoleColor(CC_RESET);
+                    methodChoice = ReadLine();
+                    
+                    if (methodChoice.empty()) methodChoice = L"2";
+                    if (methodChoice == L"1" || methodChoice == L"2") break;
+
+                    SetConsoleColor(CC_RED);
+                    wprintf(L"  Invalid option choice. Select 1 or 2.\n");
+                    SetConsoleColor(CC_RESET);
+                }
+
+                if (methodChoice == L"1") {
+                    SaveToManualPath(script, finalSavedPath);
+                } else {
+                    wchar_t path[MAX_PATH] = { 0 };
+                    OPENFILENAMEW of;
+                    ZeroMemory(&of, sizeof(of));
+                    of.lStructSize = sizeof(of);
+                    of.lpstrFilter = L"Batch Files (*.bat)\0*.bat\0All Files (*.*)\0*.*\0\0";
+                    of.lpstrFile = path;
+                    of.nMaxFile = MAX_PATH;
+                    of.lpstrDefExt = L"bat";
+                    of.lpstrTitle = L"Save Batch Menu Script";
+                    of.Flags = OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY | OFN_PATHMUSTEXIST;
+
+                    if (GetSaveFileNameW(&of)) {
+                        if (!WriteScriptToFile(path, script)) {
+                            SetConsoleColor(CC_RED);
+                            wprintf(L"\n  [ERROR] Explorer save failed.\n");
+                            SetConsoleColor(CC_RESET);
+                            SaveToManualPath(script, finalSavedPath);
+                        } else {
+                            SetConsoleColor(CC_GREEN);
+                            wprintf(L"\n  [SUCCESS] Saved to: %ls\n", path);
+                            SetConsoleColor(CC_RESET);
+                            finalSavedPath = path;
+                        }
+                    } else {
+                        SetConsoleColor(CC_YELLOW);
+                        wprintf(L"\n  Dialog canceled. Defaulting to manual path entry...\n");
+                        SetConsoleColor(CC_RESET);
+                        SaveToManualPath(script, finalSavedPath);
+                    }
+                }
+            } else {
+                SetConsoleColor(CC_YELLOW);
+                wprintf(L"\n  Not saved!\n");
+                SetConsoleColor(CC_RESET);
+            }
+        }
+
+SetConsoleColor(CC_YELLOW);
+        wprintf(L"\n  ============================================\n");
+        wprintf(L"  What would you like to do next?\n");
+        wprintf(L"    1) Go back to main menu\n");
+        wprintf(L"    2) Launch script\n");
+        wprintf(L"    3) Exit\n");
+        wprintf(L"  Select [3]: ");
+        SetConsoleColor(CC_RESET);
+        std::wstring endChoice = ReadLine();
+
+        if (endChoice == L"3") {
+            DeleteTempFile(tempFilePath);
+            break;
+        } else if (endChoice == L"2") {
+            if (finalSavedPath.empty()) {
+                tempFilePath = GenerateTempFilePath();
+                if (!WriteScriptToFile(tempFilePath, script)) {
+                    SetConsoleColor(CC_RED);
+                    wprintf(L"  [Error] Could not create temp file!\n");
+                    SetConsoleColor(CC_RESET);
+                    system("pause");
+                    continue;
+                }
+                finalSavedPath = tempFilePath;
+                SetConsoleColor(CC_GREEN);
+                wprintf(L"\n  [Temp file saved to: %ls]\n", tempFilePath.c_str());
+                SetConsoleColor(CC_RESET);
+            }
+            
+            ShellExecuteW(NULL, L"open", finalSavedPath.c_str(), NULL, NULL, SW_SHOWNORMAL);
+            SetConsoleColor(CC_YELLOW);
+            wprintf(L"\n  Cleaning up temp file...\n");
+            SetConsoleColor(CC_RESET);
+            Sleep(3000);
+            DeleteTempFile(tempFilePath);
+            tempFilePath = L"";
+        }
+        
+        system("cls");
     }
 
-    SetConsoleColor(CC_CYAN);
-    wprintf(L"\n  Press Enter to exit...");
-    SetConsoleColor(CC_RESET);
-    ReadLine();
     return 0;
 }
