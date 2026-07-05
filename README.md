@@ -12,10 +12,14 @@ Smart file handling (recognises illegal charaters, automaticaly creates folders/
 And way more feautures to come!
 # Contribution
 If you find any bugs, PLEASE submit it in the Issues tab, feel free to request a pull and tell me if you have any kind of idea for a feauture or improvment
-PLEASE star this repository so this tool can be broought to its target user base, and make CLI life easier!
 
+PLEASE star this repository so this tool can be broought to its target user base, and make CLI life easier!
+# Preview
 Image of the GUI version (⚠️ HEAVLY in beta ⚠️):
+
 <img width="859" height="751" alt="image" src="https://github.com/user-attachments/assets/fc820163-dff1-4f5b-8ded-4e0cf519618d" />
 
 Image of the CLI version (Recomended, functional but currently ironing out minor bugs and adding new feautures almost daily ✅):
+
 <img width="562" height="196" alt="Screenshot 2026-07-05 230237" src="https://github.com/user-attachments/assets/4656663c-1f33-480f-96a1-e319f1e12521" />
+Hudge shotout to my laptop!
