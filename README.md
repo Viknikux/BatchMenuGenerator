@@ -7,7 +7,7 @@ Easy to use
 Fully or semi CLI by choice  
 Text configuration (.txt) and command mode (raw commands with unique syntax, easy to understand and learn, check the config template and example config txt files in the main branch)  
 Chain commands (multiple commands per option at once, use timeout /t command for delay between commands)  
-Password protecting batch files (NOTE: This normaly does nothing as anyone can right click to edit a batch file and see the command, for this to be effective, you can use a tool like [Bat-To-Exe-Converter-64-Bit]((https://github.com/l-urk/Bat-To-Exe-Converter-64-Bit)v to compile your script into an unmodifiable .exe file)  
+Password protecting batch files (NOTE: This normaly does nothing as anyone can right click to edit a batch file and see the command, for this to be effective, you can use a tool like Batch-To-EXE-Converter (found here on github) to compile your script into an unmodifiable .exe file)  
 Smart file handling (recognises illegal charaters, automaticaly creates folders/replaces files by choice, supports manual path and Windows file explorer save method)  
 And way more feautures to come!
 # Contribution
