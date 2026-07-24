@@ -16,6 +16,7 @@ If you find any bugs, PLEASE submit it in the Issues tab, feel free to request a
 PLEASE star this repository so this tool can be broought to its target user base, and make CLI life easier!
 # Preview
 Image of the standard version (Recomended ✅):  
+  
 <img width="537" height="192" alt="image" src="https://github.com/user-attachments/assets/28676661-0101-482b-ae35-d3b4460efc8c" />  
   
 Image of the GUI version (⚠️ HEAVLY in beta ⚠️ Not recomended for use):  
