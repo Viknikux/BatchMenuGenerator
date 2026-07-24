@@ -17,5 +17,7 @@ PLEASE star this repository so this tool can be broought to its target user base
 # Preview
 Image of the standard version (Recomended ✅):  
 <img width="537" height="192" alt="image" src="https://github.com/user-attachments/assets/28676661-0101-482b-ae35-d3b4460efc8c" />  
+  
 Image of the GUI version (⚠️ HEAVLY in beta ⚠️ Not recomended for use):  
+  
 <img width="859" height="751" alt="image" src="https://github.com/user-attachments/assets/fc820163-dff1-4f5b-8ded-4e0cf519618d" />  
