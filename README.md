@@ -1,6 +1,7 @@
 # BatchMenuGenerator
 BMG is a ligthweight, simple utility for making batch scripts for chain commands and launchers, the GUI version is currently unstable and very buggy so right now I am focusing on the CLI version
 # Compatibility 
+!NEW! Linux port for Linux Bash scripting, check out [BashMenuGenerator](https://github.com/Viknikux/BashMenuGenerator)!  
 Runs on anything from stripped down Windows 7 installs to the latest Windows 11 25h2 builds with no extra dependencies, just a single click-to-run exe smaller than a photo
 # Overall description
 Easy to use  
