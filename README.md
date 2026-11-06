@@ -172,7 +172,8 @@ There are effectively no specific hardware requirements. If your computer can ru
 ## 📸 Preview
 
 ### This is the Main Menu screen in the 1.5.0 version with TUI mode enabled  
-<img width="813" height="362" alt="image" src="https://github.com/user-attachments/assets/253fea7e-a977-48c6-8a90-a473f7660144" />
+<img width="1728" height="731" alt="image" src="https://github.com/user-attachments/assets/dd227916-92d2-4f4a-af25-095b51439cb4" />
+
 
 ---
 
