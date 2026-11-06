@@ -18,7 +18,7 @@ Create everything from simple command launchers to complex, multi-level menu sys
 
 - **Arrow-Key Interface (TUI):** Navigate menus using Up/Down, Enter and Esc instead of constantly typing numbers or answering Y/N prompts.
 - **Nested Submenus:** Create hierarchical menu systems up to 6 levels deep, with up to 20 options per menu.
-- **Custom Menu Appearance:** Choose between Classic (`=`), Modern (`-`) and Zigzag (`Z`) borders.
+- **Custom Menu Appearance:** Choose between Classic (`=`), Modern (`-`), Zigzag (`Z`) and Custom character borders 
 - **Built-in Theme Engine:** Customize the entire interface with different color presets, including Default, Matrix, Cyberpunk, CLI and Violent.
 - **Optional Menu Sounds:** Enable subtle navigation and confirmation sounds.
 - **Classic Prompt Mode:** Prefer the traditional keyboard input experience? Disable TUI Mode in Settings.
@@ -163,7 +163,7 @@ There are effectively no specific hardware requirements. If your computer can ru
 | Your Windows installation | Download |
 |---|---|
 | 32-bit Windows (x86) | **x86 executable** |
-| 64-bit Windows (x64) | **x64 executable** |
+| 64-bit Windows (x64) | **Regular BatchMenuGenerator.exe (x64)** |
 
 > ⚠️ A 32-bit Windows installation cannot run the x64 executable. If you're using Windows Vista x86 or another 32-bit Windows installation, make sure to download the **x86 version**.
 
@@ -171,17 +171,8 @@ There are effectively no specific hardware requirements. If your computer can ru
 
 ## 📸 Preview
 
-### Standard CLI Version (Recommended ✅)
-
-The primary and actively developed version of BatchMenuGenerator.
-
-<img width="537" alt="Standard CLI Interface" src="https://github.com/user-attachments/assets/28676661-0101-482b-ae35-d3b4460efc8c" />
-
-### GUI Version (⚠️ Experimental / Heavy Beta)
-
-> **Note:** The GUI version is currently experimental and unstable. Active development is focused on improving and maintaining the standard CLI version.
-
-<img width="859" alt="GUI Interface Beta" src="https://github.com/user-attachments/assets/fc820163-dff1-4f5b-8ded-4e0cf519618d" />
+### This is the Main Menu screen in the 1.5.0 version with TUI mode enabled  
+<img width="813" height="362" alt="image" src="https://github.com/user-attachments/assets/253fea7e-a977-48c6-8a90-a473f7660144" />
 
 ---
 
@@ -244,5 +235,5 @@ If you find BatchMenuGenerator useful, please consider giving the repository a *
 
 <p align="center">
   <b>BatchMenuGenerator</b><br>
-  Making Windows batch automation easier, one menu at a time.
+  Making Windows batch automation easier
 </p>
