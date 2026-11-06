@@ -12,7 +12,7 @@ Create everything from simple command launchers to complex, multi-level menu sys
 
 ---
 
-## 🚀 Features
+##  Features
 
 ### 🖥️ Interactive Menu System
 
