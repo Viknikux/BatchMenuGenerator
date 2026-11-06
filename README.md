@@ -1,3 +1,5 @@
+<img width="241" height="256" alt="BMG" src="https://github.com/user-attachments/assets/ca6fa05b-dbc1-4f4c-abd5-a6f9f70b84e5" />  
+
 # BatchMenuGenerator
 
 ![Version](https://img.shields.io/badge/version-1.5.0-blue)
