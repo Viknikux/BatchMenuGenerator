@@ -4,6 +4,14 @@
 ![Status](https://img.shields.io/badge/status-release--stable-success)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 
+ /$$$$$$$  /$$      /$$  /$$$$$$ 
+| $$__  $$| $$$    /$$$ /$$__  $$
+| $$  \ $$| $$$$  /$$$$| $$  \__/
+| $$$$$$$ | $$ $$/$$ $$| $$ /$$$$
+| $$__  $$| $$  $$$| $$| $$|_  $$
+| $$  \ $$| $$\  $ | $$| $$  \ $$
+| $$$$$$$/| $$ \/  | $$|  $$$$$$/
+|_______/ |__/     |__/ \______/   
 **BatchMenuGenerator (BMG)** is a lightweight, powerful utility for creating, editing and compiling Windows `.bat` menu scripts. What started as a simple question-and-answer wizard has evolved into a complete command-line workbench featuring interactive arrow-key menus, nested submenus, a built-in text editor, persistent settings and an integrated EXE compiler.
 
 Create everything from simple command launchers to complex, multi-level menu systems with custom commands, administrator privileges and password protection.
