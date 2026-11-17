@@ -10,8 +10,8 @@
 
 Create everything from simple command launchers to complex, multi-level menu systems with custom commands, administrator privileges and password protection.
 
-> 🐧 **Looking for Linux support?** Check out the native Linux port: [BashMenuGenerator](https://github.com/Viknikux/BashMenuGenerator)!
-
+> 🐧 **Looking for Linux support?** Check out the native Linux port: [BashMenuGenerator](https://github.com/Viknikux/BashMenuGenerator)!  
+> 🌐 **Also check out the BMG website:** [bmg.viknikux.workers.dev](https://bmg.viknikux.workers.dev)
 ---
 
 ##  Features
